@@ -10206,8 +10206,14 @@ try {
         fail('merge-tracker.mjs crashed while updating a row with populated custom columns');
       } else {
         const scRows = readFileSync(tracker, 'utf-8').split('\n').filter(l => l.includes('StreamCo'));
-        if (scRows.length === 1 && scRows[0].includes('4.7/5')
-            && scRows[0].includes('https://apply.example/1') && scRows[0].includes('2026-01-12')) {
+        // Cell-exact assertions, not whole-row substrings: they prove each value
+        // sits in ITS OWN header-declared column (a substring match would pass
+        // with the URL shifted under the wrong header — the very bug this suite
+        // guards), and an exact equality is not URL substring "sanitization",
+        // which CodeQL rightly flags as a tainted pattern to copy.
+        const scCells = scRows.length === 1 ? scRows[0].split('|').map(s => s.trim()) : [];
+        if (scRows.length === 1 && scCells[5] === '4.7/5'
+            && scCells[8] === 'https://apply.example/1' && scCells[9] === '2026-01-12') {
           pass('update preserved user-entered Apply Link and Follow-up cells');
         } else {
           fail(`custom-column values lost on update: ${scRows[0]}`);
