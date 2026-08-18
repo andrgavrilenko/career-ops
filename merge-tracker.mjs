@@ -470,6 +470,20 @@ function buildRow(o) {
   // index 0 is the empty string left of the leading pipe; index `width - 1` is
   // the one right of the trailing pipe. Data cells live in between.
   const cells = new Array(Math.max(0, width - 2)).fill('—');
+  // Rebuilding an EXISTING row (PDF sync, re-evaluation update, URL backfill):
+  // start from the row's current cells so values in columns career-ops has no
+  // field for — a hand-entered Apply Link, a Follow-up date — survive the
+  // rebuild. parseAppLine only carries the mapped fields, so without this the
+  // '—' fill above would overwrite those user-owned cells on every update.
+  // Copied verbatim (empty cells included); the put() calls below then
+  // overwrite only the fields career-ops owns. New rows pass no `raw` and keep
+  // the plain '—' fill.
+  if (o.raw) {
+    const prev = String(o.raw).split('|').map(s => s.trim());
+    for (let i = 0; i < cells.length; i++) {
+      if (prev[i + 1] !== undefined) cells[i] = prev[i + 1];
+    }
+  }
   const put = (key, value) => {
     const idx = COLMAP[key];
     if (idx == null) return false;
@@ -1170,6 +1184,8 @@ for (const file of tsvFiles) {
       score: addition.score, status: duplicate.status, pdf,
       report: addition.report,
       notes: mergeNotes(duplicate.notes, addition, oldScore, newScore, supersededNote),
+      // Preserve the row's unmapped custom-column cells across the rebuild.
+      raw: duplicate.raw,
       // Carry the key forward. Without this the update path rewrites the row
       // with an empty URL cell and the posting loses the very key that matched
       // it, silently demoting every later merge back to the fuzzy tiers.

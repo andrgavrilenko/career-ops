@@ -10027,6 +10027,26 @@ try {
           fail(`re-evaluation dedup broken: ${after.length} Acme rows, expected 1 updated to 4.8/5`);
         }
       }
+
+      // Rebuild-preservation half: updating an EXISTING row must keep the
+      // user-entered values in columns career-ops has no field for (the
+      // seeded StreamCo row carries an Apply Link URL and a Follow-up date).
+      // Without seeding from the row's current cells, the '—' fill would
+      // wipe both on every update.
+      writeFileSync(join(additionsDir, '004-streamco.tsv'),
+        '4\t2026-01-07\tStreamCo\tPlatform Engineer\tEvaluated\t4.7/5\t❌\t[4](reports/004-acme-2026-01-06.md)\tre-eval of seeded row\n');
+      const preserveRun = run(NODE, ['merge-tracker.mjs'], { env: widthEnv });
+      if (preserveRun === null) {
+        fail('merge-tracker.mjs crashed while updating a row with populated custom columns');
+      } else {
+        const scRows = readFileSync(tracker, 'utf-8').split('\n').filter(l => l.includes('StreamCo'));
+        if (scRows.length === 1 && scRows[0].includes('4.7/5')
+            && scRows[0].includes('https://apply.example/1') && scRows[0].includes('2026-01-12')) {
+          pass('update preserved user-entered Apply Link and Follow-up cells');
+        } else {
+          fail(`custom-column values lost on update: ${scRows[0]}`);
+        }
+      }
     }
   } finally {
     rmSync(widthTmp, { recursive: true, force: true });
