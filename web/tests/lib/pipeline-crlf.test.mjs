@@ -40,9 +40,9 @@ test("no field carries a stray carriage return", () => {
   }
 });
 
-test("mixed endings parse — the writer appends LF rows to a CRLF file", () => {
-  // scan.mjs's appendToPipeline writes "\n"; on a CRLF file that yields mixed
-  // endings, which used to surface ONLY the freshly appended rows.
+test("mixed endings parse — an LF-written row appended to a CRLF file", () => {
+  // scan.mjs's appendToPipeline writes "\n", so appending to a CRLF file leaves
+  // mixed endings. Against the old reader that surfaced ONLY the appended rows.
   const mixed = PIPELINE_LF.replace(/\n/g, "\r\n") + "- [ ] https://example.com/d | Umbrella | QA\n";
   const rows = parseInbox(mixed);
   assert.equal(rows.length, 4);
