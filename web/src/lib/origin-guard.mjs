@@ -9,12 +9,18 @@
 //   F2 — LAN: if the dev server is bound to 0.0.0.0, anyone on the same
 //        network can hit those routes directly.
 //
-// This module is the pure decision logic behind `middleware.ts`. It is kept
-// free of node/next imports so it runs on the edge runtime and is unit
-// testable in isolation. Two independent layers, both must pass:
+// This module is the pure decision logic behind `proxy.ts`. It is kept free of
+// node/next imports so it runs on the edge runtime and is unit testable in
+// isolation. Two independent layers, both must pass:
 //
 //   Origin layer (F1): trust Sec-Fetch-Site when the browser sends it, fall
 //     back to comparing Origin against Host for older/non-browser clients.
+//     An opt-in allowlist of extra origins (CAREER_OPS_ALLOWED_ORIGINS, empty
+//     by default) passes this layer regardless of Sec-Fetch-Site: the browser
+//     sets Origin itself and a page cannot forge it, so naming an origin is as
+//     sound a signal as same-origin is. That is what a local companion client
+//     needs — a browser extension speaks from a chrome-extension:// origin,
+//     which is always "cross-site" to Fetch Metadata and so blocked outright.
 //   Host layer (F2): only answer on a loopback Host by default; extra hosts
 //     require an explicit opt-in (CAREER_OPS_WEB_ALLOWED_HOSTS).
 
@@ -39,6 +45,27 @@ export function isLoopbackHost(host) {
   return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
 }
 
+/** Lowercase an origin and drop any trailing slashes. */
+export function normalizeOrigin(origin) {
+  if (!origin) return "";
+  return String(origin).trim().replace(/\/+$/, "").toLowerCase();
+}
+
+/**
+ * Parse the origin allowlist ("chrome-extension://abc, http://localhost:3000")
+ * into a Set. Unset or blank means an empty Set: no extra origin is trusted
+ * unless the user names it, so the guard's default behaviour is unchanged.
+ */
+export function parseAllowedOrigins(envValue) {
+  const out = new Set();
+  if (!envValue) return out;
+  for (const token of String(envValue).split(/[\s,]+/)) {
+    const o = normalizeOrigin(token);
+    if (o) out.add(o);
+  }
+  return out;
+}
+
 /** Parse the opt-in env value ("host1, host2:port host3") into a Set of hosts. */
 export function parseAllowedHosts(envValue) {
   const out = new Set();
@@ -61,9 +88,10 @@ function block(reason) {
  * @param {string|null} req.origin        Origin header, if any
  * @param {string|null} req.host          Host header
  * @param {Set<string>} req.allowedHosts  extra non-loopback hosts opted in
+ * @param {Set<string>} [req.allowedOrigins] extra origins allowed to call the API
  * @returns {{ok: true} | {ok: false, status: number, reason: string}}
  */
-export function checkRequest({ secFetchSite, origin, host, allowedHosts }) {
+export function checkRequest({ secFetchSite, origin, host, allowedHosts, allowedOrigins }) {
   // Host layer (F2): must be loopback, or an explicitly opted-in host.
   const normalizedHost = normalizeHost(host);
   if (!normalizedHost) return block("missing Host header");
@@ -72,6 +100,14 @@ export function checkRequest({ secFetchSite, origin, host, allowedHosts }) {
     return block(
       "this host is not allowed; the dashboard serves loopback only unless CAREER_OPS_WEB_ALLOWED_HOSTS opts it in",
     );
+  }
+
+  // Origin layer (F1), allowlist: an explicitly named origin passes before
+  // Fetch Metadata is consulted, because a legitimate non-page client is
+  // always "cross-site" to the browser. "null" is an opaque origin (sandboxed
+  // iframe, data: URL), never a real client, so it can never be allowlisted.
+  if (origin != null && origin !== "null" && allowedOrigins && allowedOrigins.size > 0) {
+    if (allowedOrigins.has(normalizeOrigin(origin))) return { ok: true };
   }
 
   // Origin layer (F1), primary: the Fetch Metadata signal, when present.
