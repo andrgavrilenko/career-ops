@@ -142,6 +142,10 @@ export type Application = {
   status: string;
   pdf: string;
   report: string;
+  /** Tracker's `Apply Link` column — usually a markdown link to the original ad; "" when the column is absent. */
+  applyLink: string;
+  /** Tracker's `Follow-up` column — a date or "—"; "" when the column is absent. */
+  followUp: string;
   notes: string;
 };
 

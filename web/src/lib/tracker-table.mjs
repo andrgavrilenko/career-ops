@@ -27,6 +27,9 @@ import path from "node:path";
 const WEB_FIELD = {
   num: "n", date: "date", company: "company", via: "via", role: "role", location: "location",
   score: "score", status: "status", pdf: "pdf", report: "report", notes: "notes",
+  // The tracker's Apply Link / Follow-up columns (already in the shared alias
+  // table) were mapped nowhere, so the web read path silently dropped them.
+  applylink: "applyLink", followup: "followUp",
 };
 
 /** @type {Map<string, {mtimeMs: number, size: number, aliases: Record<string, string>}>} */
@@ -116,7 +119,7 @@ export function detectColumnMap(lines, aliases) {
  * mirroring parseTrackerRow in tracker-parse.mjs.
  * @param {string} md - content of data/applications.md.
  * @param {string} rootDir - career-ops root holding tracker-aliases.json.
- * @returns {{n: string, date: string, company: string, via: string, role: string, score: string, status: string, pdf: string, report: string, notes: string}[]}
+ * @returns {{n: string, date: string, company: string, via: string, role: string, score: string, status: string, pdf: string, report: string, applyLink: string, followUp: string, notes: string}[]}
  */
 export function parseApplications(md, rootDir) {
   const lines = md.split("\n");
@@ -140,13 +143,13 @@ export function parseApplications(md, rootDir) {
       rows.push({
         n: at("n"), date: at("date"), company: at("company"), via: at("via"), role: at("role"),
         score: at("score"), status: at("status"), pdf: at("pdf"), report: at("report"),
-        notes: at("notes"),
+        applyLink: at("applyLink"), followUp: at("followUp"), notes: at("notes"),
       });
     } else {
       // Legacy fixed order; tolerate the 8-cell variant where Notes is absent.
       if (!/^\d+$/.test(cells[0])) continue; // header / separator / malformed
       const [n, date, company, role, score, status, pdf, report, ...rest] = cells;
-      rows.push({ n, date, company, via: "", role, score, status, pdf, report, notes: rest.join(" | ") });
+      rows.push({ n, date, company, via: "", role, score, status, pdf, report, applyLink: "", followUp: "", notes: rest.join(" | ") });
     }
   }
   return rows;

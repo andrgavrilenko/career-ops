@@ -364,6 +364,39 @@ if (!HAS_WEB) {
   } else {
     fail(`web reader: alias table drifted from HEADER_ALIASES — web ${JSON.stringify(webAliases)} vs core ${JSON.stringify(HEADER_ALIASES)}`);
   }
+
+  // Every column the SHARED alias table resolves has to reach the caller, not
+  // just be recognized: "apply link" → applylink and "follow-up" → followup are
+  // in tracker-aliases.json, but WEB_FIELD mapped neither, so the web read path
+  // detected both columns and then dropped their values on the floor.
+  const WEB_APPLY_FOLLOWUP = `# Applications Tracker
+
+| # | Date | Company | Role | Score | Status | PDF | Report | Apply Link | Follow-up | Notes |
+|---|------|---------|------|-------|--------|-----|--------|------------|-----------|-------|
+| 1 | 2026-01-01 | Acme | Engineer | 4.0/5 | Applied | ✅ | — | [ad](https://example.com/jobs/1) | 2026-01-08 | seed row |
+`;
+  const wide = parseApplications(WEB_APPLY_FOLLOWUP, ROOT)[0];
+  if (wide && wide.applyLink === '[ad](https://example.com/jobs/1)' && wide.followUp === '2026-01-08') {
+    pass('web reader: Apply Link / Follow-up columns reach the caller');
+  } else {
+    fail(`web reader: Apply Link / Follow-up on 11-col tracker — got ${JSON.stringify(wide)}`);
+  }
+  if (wide && wide.notes === 'seed row' && wide.status === 'Applied') {
+    pass('web reader: Notes/Status unaffected by the two added fields');
+  } else {
+    fail(`web reader: Notes/Status on 11-col tracker — got ${JSON.stringify(wide)}`);
+  }
+  // A tracker predating those columns keeps working; the fields read as "".
+  const LEGACY_9COL = `| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
+|---|------|---------|------|-------|--------|-----|--------|-------|
+| 1 | 2026-01-01 | Acme | Engineer | 4.0/5 | Applied | ✅ | — | seed row |
+`;
+  const legacy = parseApplications(LEGACY_9COL, ROOT)[0];
+  if (legacy && legacy.applyLink === '' && legacy.followUp === '' && legacy.notes === 'seed row') {
+    pass('web reader: 9-column tracker still parses, new fields empty');
+  } else {
+    fail(`web reader: 9-column tracker — got ${JSON.stringify(legacy)}`);
+  }
 }
 
 // ═══ Stage 2 (#1596): Via column ════════════════════════════════════════════
