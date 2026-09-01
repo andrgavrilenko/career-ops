@@ -357,6 +357,26 @@ if (!HAS_WEB) {
   } else {
     fail(`web reader: Notes past unknown column — got "${r && r.notes}"`);
   }
+  // Recognizing a column is not the same as delivering it: `location` is in
+  // tracker-aliases.json AND in WEB_FIELD, so detectColumnMap maps it — but
+  // parseApplications never emitted the field, so the value stopped there and
+  // no readApplications() caller could see it.
+  if (r && r.location === 'Remote') {
+    pass('web reader: Location column reaches the caller');
+  } else {
+    fail(`web reader: Location on 10-col tracker — got ${JSON.stringify(r)}`);
+  }
+  // A tracker predating the column keeps working; the field reads as "".
+  const LEGACY_NO_LOCATION = `| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
+|---|------|---------|------|-------|--------|-----|--------|-------|
+| 1 | 2026-01-01 | Acme | Engineer | 4.0/5 | Applied | ✅ | — | seed row |
+`;
+  const noLoc = parseApplications(LEGACY_NO_LOCATION, ROOT)[0];
+  if (noLoc && noLoc.location === '' && noLoc.notes === 'seed row') {
+    pass('web reader: tracker without a Location column still parses, field empty');
+  } else {
+    fail(`web reader: tracker without Location — got ${JSON.stringify(noLoc)}`);
+  }
   // The web reader and the Node tooling must consume the IDENTICAL table.
   const webAliases = loadHeaderAliases(ROOT);
   if (JSON.stringify(webAliases) === JSON.stringify(HEADER_ALIASES) && Object.keys(webAliases).length > 0) {
