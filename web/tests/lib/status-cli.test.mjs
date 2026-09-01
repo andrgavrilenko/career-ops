@@ -32,6 +32,42 @@ test("the last JSON object wins, so a diagnostic object cannot shadow the result
   assert.deepEqual(parseCliJson(stdout), { ok: true, changed: false });
 });
 
+test("the PRETTY-printed success document is read (set-status.mjs prints it multi-line)", () => {
+  // set-status.mjs prints the success object with `JSON.stringify(r, null, 2)`
+  // while its error object is compact. A line-at-a-time parser therefore found
+  // nothing on exactly the runs that succeeded, and /api/status answered 500
+  // "status update returned no result" for a change already written to
+  // data/applications.md and already appended to data/status-log.tsv.
+  const stdout = [
+    "{",
+    '  "changed": true,',
+    '  "num": 1,',
+    '  "company": "Acme",',
+    '  "oldStatus": "SKIP",',
+    '  "newStatus": "Discarded",',
+    '  "statusLogged": true',
+    "}",
+    "",
+  ].join("\n");
+  const parsed = parseCliJson(stdout);
+  assert.equal(parsed?.changed, true);
+  assert.equal(parsed?.statusLogged, true);
+  assert.equal(parsed?.newStatus, "Discarded");
+});
+
+test("a diagnostic ahead of a pretty document does not break it, and a nested brace is not the start", () => {
+  const stdout = [
+    "warning: ledger append skipped for row {12}",
+    "{",
+    '  "changed": true,',
+    '  "meta": {',
+    '    "source": "web"',
+    "  }",
+    "}",
+  ].join("\n");
+  assert.deepEqual(parseCliJson(stdout), { changed: true, meta: { source: "web" } });
+});
+
 test("a plain object is required: no output, no JSON, and a bare array all read as absent", () => {
   assert.equal(parseCliJson(""), null);
   assert.equal(parseCliJson("no json at all\n"), null);
