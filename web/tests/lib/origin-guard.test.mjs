@@ -191,6 +191,50 @@ test("normalizeOrigin lowercases and strips trailing slashes", () => {
   assert.equal(normalizeOrigin(undefined), "");
 });
 
+test("normalizeOrigin drops a port that is the scheme's default", () => {
+  // The browser omits it: a page on http://localhost:80 sends
+  // `Origin: http://localhost`. Both spellings have to land on one string, or
+  // an allowlist entry written with the port never matches a real request.
+  assert.equal(normalizeOrigin("http://localhost:80"), normalizeOrigin("http://localhost"));
+  assert.equal(normalizeOrigin("https://dash.example:443"), normalizeOrigin("https://dash.example"));
+  // A non-default port is part of the origin and stays.
+  assert.equal(normalizeOrigin("http://localhost:3000"), "http://localhost:3000");
+  // A value the URL parser refuses still matches itself rather than vanishing.
+  assert.equal(normalizeOrigin("not an origin"), "not an origin");
+});
+
+test("an allowlist entry written with the default port matches the header without it", () => {
+  const d = checkRequest({
+    secFetchSite: "cross-site",
+    origin: "http://dash.example",
+    host: "localhost:3000",
+    allowedHosts: parseAllowedHosts(""),
+    allowedOrigins: parseAllowedOrigins("http://dash.example:80"),
+  });
+  assert.equal(d.ok, true);
+});
+
+test("the reverse spelling matches too, and an unrelated origin still does not", () => {
+  const allowedOrigins = parseAllowedOrigins("https://dash.example");
+  const allowed = checkRequest({
+    secFetchSite: "cross-site",
+    origin: "https://dash.example:443",
+    host: "localhost:3000",
+    allowedHosts: parseAllowedHosts(""),
+    allowedOrigins,
+  });
+  assert.equal(allowed.ok, true);
+  const blocked = checkRequest({
+    secFetchSite: "cross-site",
+    origin: "https://evil.example",
+    host: "localhost:3000",
+    allowedHosts: parseAllowedHosts(""),
+    allowedOrigins,
+  });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.status, 403);
+});
+
 test("parseAllowedOrigins is empty when the variable is unset or blank", () => {
   assert.equal(parseAllowedOrigins(undefined).size, 0);
   assert.equal(parseAllowedOrigins("").size, 0);

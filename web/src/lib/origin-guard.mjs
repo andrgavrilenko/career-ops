@@ -45,10 +45,32 @@ export function isLoopbackHost(host) {
   return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
 }
 
-/** Lowercase an origin and drop any trailing slashes. */
+/**
+ * An origin in the one spelling the allowlist compares on.
+ *
+ * Lowercased, stripped of trailing slashes, and — for http(s) — of a port that
+ * is the scheme's default. The browser never sends one: a page served from
+ * http://localhost:80 sets `Origin: http://localhost`. Comparing raw strings
+ * therefore rejected an allowlist entry that spelled the port out, which is a
+ * spelling someone writing the entry by hand has every reason to choose.
+ *
+ * Anything the URL parser refuses falls back to the plain string form, so an
+ * unparseable entry still matches itself rather than vanishing from the list.
+ */
 export function normalizeOrigin(origin) {
   if (!origin) return "";
-  return String(origin).trim().replace(/\/+$/, "").toLowerCase();
+  const plain = String(origin).trim().replace(/\/+$/, "").toLowerCase();
+  if (!plain) return "";
+  let url;
+  try {
+    url = new URL(plain);
+  } catch {
+    return plain;
+  }
+  // url.host drops a port that is the scheme's default, which is the whole
+  // point here; scheme and host are also all an origin is, so a stray path or
+  // query in a hand-written entry cannot smuggle itself into the comparison.
+  return url.host ? `${url.protocol}//${url.host}` : plain;
 }
 
 /**
