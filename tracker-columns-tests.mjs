@@ -387,6 +387,8 @@ if (!HAS_WEB) {
     fail(`web reader: Notes/Status on 11-col tracker — got ${JSON.stringify(wide)}`);
   }
   // A tracker predating those columns keeps working; the fields read as "".
+  // Its header IS recognized, so this covers the mapped branch with the two
+  // columns simply absent from the map.
   const LEGACY_9COL = `| # | Date | Company | Role | Score | Status | PDF | Report | Notes |
 |---|------|---------|------|-------|--------|-----|--------|-------|
 | 1 | 2026-01-01 | Acme | Engineer | 4.0/5 | Applied | ✅ | — | seed row |
@@ -396,6 +398,25 @@ if (!HAS_WEB) {
     pass('web reader: 9-column tracker still parses, new fields empty');
   } else {
     fail(`web reader: 9-column tracker — got ${JSON.stringify(legacy)}`);
+  }
+  // The fixed-order fallback is a SECOND path, reached only when no header is
+  // recognized at all — the shape of a tracker whose header row was edited or
+  // lost. The fixture above cannot reach it, so the branch that hard-codes the
+  // column order needs its own rows with no header above them.
+  const NO_HEADER = `| 1 | 2026-01-01 | Acme | Engineer | 4.0/5 | Applied | ✅ | — | seed row |
+`;
+  const positional = parseApplications(NO_HEADER, ROOT)[0];
+  if (
+    positional &&
+    positional.company === 'Acme' &&
+    positional.role === 'Engineer' &&
+    positional.applyLink === '' &&
+    positional.followUp === '' &&
+    positional.notes === 'seed row'
+  ) {
+    pass('web reader: headerless tracker takes the fixed-order path, new fields empty');
+  } else {
+    fail(`web reader: fixed-order fallback — got ${JSON.stringify(positional)}`);
   }
 }
 
