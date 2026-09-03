@@ -68,6 +68,16 @@ test("a diagnostic ahead of a pretty document does not break it, and a nested br
   assert.deepEqual(parseCliJson(stdout), { changed: true, meta: { source: "web" } });
 });
 
+test("an empty object nested in an array is not mistaken for the document", () => {
+  // The nested-brace case above is guarded by its key ("meta": {), so it never
+  // produced a line that parses on its own. An empty object inside an array
+  // does: pretty-printing puts `{}` on its own indented line, and scanning from
+  // the end reached it first — the route then read changed/statusLogged off an
+  // empty object and reported a write that stood as one that did nothing.
+  const stdout = JSON.stringify({ ok: true, changed: true, rows: [{}], statusLogged: true }, null, 2);
+  assert.deepEqual(parseCliJson(stdout), { ok: true, changed: true, rows: [{}], statusLogged: true });
+});
+
 test("a plain object is required: no output, no JSON, and a bare array all read as absent", () => {
   assert.equal(parseCliJson(""), null);
   assert.equal(parseCliJson("no json at all\n"), null);

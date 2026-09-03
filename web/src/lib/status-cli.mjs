@@ -51,7 +51,11 @@ export function parseCliJson(stdout) {
     return null;
   };
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (!lines[i].trim().startsWith("{")) continue;
+    // Column zero, not "starts with a brace once trimmed": the CLI prints its
+    // document unindented, so an indented brace belongs to something INSIDE a
+    // document — and `"    {}"` from an empty object in an array is a valid
+    // single-line candidate that would be returned in place of the result.
+    if (!lines[i].startsWith("{")) continue;
     const single = asObject(lines[i].trim());
     if (single) return single;
     const multi = asObject(lines.slice(i).join("\n"));
