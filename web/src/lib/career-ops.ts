@@ -138,6 +138,8 @@ export type Application = {
   /** Intermediary channel (#1596): agency/recruiter firm, "—" for direct, "" when the tracker has no Via column. */
   via: string;
   role: string;
+  /** Tracker's `Location` column — recognized by the alias table; "" when the tracker has no such column. */
+  location: string;
   score: string;
   status: string;
   pdf: string;
@@ -159,7 +161,11 @@ export type Application = {
 export function readApplications(): Application[] {
   const md = read("data/applications.md");
   if (!md) return [];
-  return parseApplications(md, careerOpsRoot());
+  // parseApplications derives each row from WEB_FIELD (tracker-table.mjs), so
+  // its keys are exactly this type's field names by construction — adding a
+  // tracker column is the two edits described there (WEB_FIELD + Application),
+  // never a hand-written return-shape list that the two could drift from.
+  return parseApplications(md, careerOpsRoot()) as Application[];
 }
 
 /** Resolve the report-number cell in data/pdf-index.tsv for a given report id.
